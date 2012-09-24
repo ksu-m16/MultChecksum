@@ -1,42 +1,22 @@
+import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-//class FixedThreadPool {
-//    public static void main(String[] args) throws IOException {
-//    	int maxThreadCount = 5;
-//    	int bytesCountToRead = 16384*2000; //16Kb
-//    	ExecutorService exec = Executors.newFixedThreadPool(maxThreadCount);
-//    	InputStream fi = new FileInputStream("radio.avi");
-//    	while(fi.available() >= bytesCountToRead) {
-//
-////        			System.out.println("threadCount " + threadCount);
-//        			
-//	        		byte[] bytes = new byte[bytesCountToRead];
-//	        		fi.read(bytes);
-//	        		Thread th = new CountThread(bytes);
-//	        		th.start();
-//	        		System.out.println("thread started");
-////	        		th.join();
-////	        		System.out.println("thread finished");
-//        		}
-//
-//    	
-//    }
-// 
-//	
-//}
-
 
 public class CheckSumCounter {
 	int checkSumSum;
 	int threadCount;
 	int maxThreadCount = 5;
-	int bytesCountToRead = 16384*2000; //16Kb
+	int bytesCountToRead = 16384; //16Kb
+//	CountThread[] pool = new CountThread[maxThreadCount];
+	ArrayList<CountThread> pool = new ArrayList<CountThread>(maxThreadCount);
 	
+//	byte[] part;
 	
     public static void main(String[] args) {
     	CheckSumCounter ch = new CheckSumCounter();
@@ -46,56 +26,104 @@ public class CheckSumCounter {
     class CountThread extends Thread{
     	byte[] bytes;
     	int checkSum = 0;
-    	
-    	public CountThread(byte[] bytes) {
-			this.bytes = bytes;
-		}
+    	private boolean busy = false;
     	
     	public void run() {
-    		synchronized(CheckSumCounter.this) {
-        		threadCount++;    
-        	}
-            for (byte b: bytes) {       
-            	
+    		while(bytes == null) {
+    			try {
+
+    					wait();
+
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+//					e.printStackTrace();
+					continue;
+				}
+    		}
+    		busy = true;
+    		System.out.println("state " + this.getState() );
+    		countCs(bytes);
+    		busy = false;
+    		try {
+    			while(true) {
+    				wait();
+    			}
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+//				e.printStackTrace();
+				System.out.println("notified");
+			}
+        }
+    	
+    	private void countCs(byte[] bytes) {
+    		for (byte b: bytes) {       
             	checkSum ^= b;
             }
     		synchronized(CheckSumCounter.this) {
     			checkSumSum ^= checkSum;    
-    			threadCount--;  
         	}
     		System.out.println(checkSum);
-        }
+       	}
+    	
+    	public void setBytes(byte[] bytes) {
+    		this.bytes = bytes;
+    	}
+    	
+    	public boolean isBusy(){
+    		return busy;
+    	}
     }
+    
+    public void schedule(byte[] part){
+    	boolean isPartPassed = false;
+    	System.out.println("schedule start");
+    	System.out.println(pool.size());
+    	while(! isPartPassed) {
+    		for (CountThread th: pool) {
+    			System.out.println("thread");
+	    		if (! th.isBusy()) {
+	    			System.out.println("not busy");
+	    			
+	    			th.notify();
+	    			isPartPassed = true;
+	    			break;
+	    		}
+    		}
+    		
+    	
+    	}
+
+    } 
     
     public void countChecksum() {
         try {
-        	InputStream fi = new FileInputStream("radio.avi");
         	
-        	System.out.println(fi.available());
+        	File f = new File("test.wmv");
+     	    InputStream fi = new FileInputStream(f);
+     	    
+        	byte[] part = new byte[bytesCountToRead];
         	
-        	while(fi.available() >= bytesCountToRead) {
-    		
-        		if (threadCount < maxThreadCount){
-        			System.out.println("threadCount " + threadCount);
-        			
-	        		byte[] bytes = new byte[bytesCountToRead];
-	        		fi.read(bytes);
-	        		Thread th = new CountThread(bytes);
-	        		th.start();
-	        		System.out.println("thread started");
-//	        		th.join();
-//	        		System.out.println("thread finished");
-        		}
-        	}
+           	byte[] allBytes = new byte[(int)f.length()];
+           	
+           	fi.read(allBytes);
+           	
+           	initPool();
+           	
+           	System.out.println(pool.size());
+           	
+           	ByteArrayInputStream data = new ByteArrayInputStream(allBytes);
+           	
+           	
+//        	while(fi.available() >= bytesCountToRead) {
+           	while(data.available() > 0) {
+//           		byte[] part = new byte[bytesCountToRead];
+           		data.read(part);
+//           		schedule(part);
+           		schedule(part);
+            }
         	
         	System.out.println("cs " + checkSumSum);
-//            Thread th1 = new CountThread();
-//            Thread th2 = new CountThread();
-//            th1.start();
-//            th2.start();
-//            th1.join();
-//            th2.join();
-//            System.out.println(counter);
+
 //        } catch (InterruptedException ex) {
 //            Logger.getLogger(CheckSumCounter.class.getName()).log(Level.SEVERE, null, ex);
         } catch (FileNotFoundException e) {
@@ -107,5 +135,14 @@ public class CheckSumCounter {
 		}
     }
 
+    private void initPool(){
+    	for (int i = 0; i < maxThreadCount; i++) {
+    		CountThread th = new CountThread();
+    		th.start();
+    		pool.add(i,th);
+    		
+    	}
+    	
+    }
        
 }
