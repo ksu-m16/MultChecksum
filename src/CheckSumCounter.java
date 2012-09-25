@@ -5,6 +5,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -31,17 +32,20 @@ public class CheckSumCounter {
     	public void run() {
     		while(bytes == null) {
     			try {
-
-    					wait();
+    				synchronized (this) {
+						this.wait();
+					}
+    					
 
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 //					e.printStackTrace();
+					System.out.println("aaa ");
 					continue;
 				}
     		}
     		busy = true;
-    		System.out.println("state " + this.getState() );
+    		System.out.println("beginning to count ");
     		countCs(bytes);
     		busy = false;
     		bytes = null;
@@ -64,7 +68,7 @@ public class CheckSumCounter {
     		synchronized(CheckSumCounter.this) {
     			checkSumSum ^= checkSum;    
         	}
-    		System.out.println(checkSum);
+    		System.out.println("checkSum " + checkSum);
        	}
     	
     	public void setBytes(byte[] bytes) {
@@ -76,7 +80,7 @@ public class CheckSumCounter {
     	}
     }
     
-    public void schedule(byte[] part){
+    void schedule(byte[] part){
     	boolean isPartPassed = false;
     	System.out.println("schedule start");
     	System.out.println(pool.size());
@@ -85,8 +89,11 @@ public class CheckSumCounter {
     			System.out.println("thread");
 	    		if (! th.isBusy()) {
 	    			System.out.println("not busy");
+	    			th.setBytes(part);
+	    			synchronized (th) {
+	    				th.notify();
+					}
 	    			
-	    			th.notify();
 	    			isPartPassed = true;
 	    			break;
 	    		}
@@ -94,8 +101,34 @@ public class CheckSumCounter {
     		
     	
     	}
-
+    	System.out.println("part passed " + part.length);
     } 
+    
+    void waitForTaskCompleting() throws InterruptedException{
+    	boolean ready = false;
+    
+    	while(! ready) {
+    		for (CountThread th: pool) {
+//    			System.out.println("thread");
+	    		if (! th.isBusy()) {
+//	    			System.out.println("not busy");
+	    			
+	    			synchronized (th) {
+	    				th.notify();
+	    				th.join();
+					}
+	    			System.out.println("finished");
+	    		}
+	    		System.out.println("poolsize" + pool.size());
+    		}
+    		System.out.println("poolsize" + pool.size());
+    		if (pool.size() == 0) {
+    			ready = true;
+    		}
+    	}
+    	
+    }
+    
     
     public void countChecksum() {
         try {
@@ -103,7 +136,7 @@ public class CheckSumCounter {
         	File f = new File("test.wmv");
      	    InputStream fi = new FileInputStream(f);
      	    
-        	byte[] part = new byte[bytesCountToRead];
+//        	byte[] part = new byte[bytesCountToRead];
         	
            	byte[] allBytes = new byte[(int)f.length()];
            	
@@ -118,12 +151,22 @@ public class CheckSumCounter {
            	
 //        	while(fi.available() >= bytesCountToRead) {
            	while(data.available() > 0) {
-//           		byte[] part = new byte[bytesCountToRead];
+           		byte[] part = new byte[bytesCountToRead];
            		data.read(part);
-//           		schedule(part);
+//           		if (data.available() < part.length) {
+//           			System.out.println(part[part.length-1] + " " + part[part.length-2] + " " + part[part.length-3]  );
+//           		}
            		schedule(part);
             }
-        	
+           	System.out.println("all data passed");
+           	try {
+				waitForTaskCompleting();
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+           	
+           	
         	System.out.println("cs " + checkSumSum);
 
 //        } catch (InterruptedException ex) {
