@@ -44,15 +44,17 @@ public class CheckSumCounter {
     		System.out.println("state " + this.getState() );
     		countCs(bytes);
     		busy = false;
-    		try {
-    			while(true) {
-    				wait();
-    			}
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-//				e.printStackTrace();
-				System.out.println("notified");
-			}
+    		bytes = null;
+    		run();
+//    		try {
+//    			while(true) {
+//    				wait();
+//    			}
+//			} catch (InterruptedException e) {
+//				// TODO Auto-generated catch block
+////				e.printStackTrace();
+//				System.out.println("notified");
+//			}
         }
     	
     	private void countCs(byte[] bytes) {
