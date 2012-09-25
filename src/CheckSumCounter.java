@@ -48,8 +48,9 @@ public class CheckSumCounter {
 //				busy = true;
 				System.out.println("beginning to count ");
 				countCs();
-				busy = false;
 				bytes = null;
+				System.out.println("ready ");
+				busy = false;
 			}
 
 			
@@ -86,13 +87,16 @@ public class CheckSumCounter {
 		while (!isPartPassed) {
 			for (CountThread th : pool) {
 //				System.out.println("thread");
+				
+//				synchronized (th) {
 				if (!th.isBusy()) {
 					synchronized (th) {
 						th.notify();
+						th.setBytes(part);
+						th.setBusy(true);
+						
+						System.out.println("not busy");
 					}
-					th.setBusy(true);
-					System.out.println("not busy");
-					th.setBytes(part);
 					isPartPassed = true;
 					break;
 				}
@@ -104,14 +108,15 @@ public class CheckSumCounter {
 
 	void waitForTaskCompleting() throws InterruptedException {
 		boolean ready = false;
-
+		System.out.println("finish them!");
 		while (!ready) {
 			for (CountThread th : pool) {
 				// System.out.println("thread");
+				synchronized (th) {
 				if (!th.isBusy()) {
 					// System.out.println("not busy");
 
-					synchronized (th) {
+//					synchronized (th) {
 						th.notify();
 						th.join();
 					}
