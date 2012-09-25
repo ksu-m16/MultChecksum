@@ -26,31 +26,23 @@ public class CheckSumCounter {
 
 	class CountThread extends Thread {
 		byte[] bytes;
-
-		private boolean busy = false;
+		private boolean busy = true;
+		private boolean terminated = false;
 
 		public void run() {
-			while (true) {
-
-				while (bytes == null) {
-					try {
+			while (!terminated) {
+				try {
 						synchronized (this) {
+							busy = false;
 							this.wait();
 						}
-
 					} catch (InterruptedException e) {
 						// TODO Auto-generated catch block
 						// e.printStackTrace();
 						System.out.println("aaa ");
-						continue;
-					}
+						break;
 				}
-//				busy = true;
-				System.out.println("beginning to count ");
 				countCs();
-				bytes = null;
-				System.out.println("ready ");
-				busy = false;
 			}
 
 			
@@ -66,9 +58,25 @@ public class CheckSumCounter {
 			}
 			System.out.println("checkSum " + checkSum);
 		}
+		
+		public boolean setTask(byte[] bytes){
+			synchronized (this) {
+				if(busy) {
+					return false;
+				}
+				busy = true;
+				setBytes(bytes);
+				notify();
+				return true;
+			}
+		}
 
 		public void setBytes(byte[] bytes) {
 			this.bytes = bytes;
+		}
+
+		public void setTerminated(boolean terminated) {
+			this.terminated = terminated;
 		}
 
 		public boolean isBusy() {
@@ -82,28 +90,14 @@ public class CheckSumCounter {
 
 	void schedule(byte[] part) {
 		boolean isPartPassed = false;
-		System.out.println("schedule start");
-//		System.out.println(pool.size());
 		while (!isPartPassed) {
 			for (CountThread th : pool) {
-//				System.out.println("thread");
-				
-//				synchronized (th) {
-				if (!th.isBusy()) {
-					synchronized (th) {
-						th.notify();
-						th.setBytes(part);
-						th.setBusy(true);
-						
-						System.out.println("not busy");
-					}
+				if (th.setTask(part)){
 					isPartPassed = true;
 					break;
 				}
 			}
-
 		}
-		System.out.println("part passed " + part.length);
 	}
 
 	void waitForTaskCompleting() throws InterruptedException {
@@ -111,23 +105,15 @@ public class CheckSumCounter {
 		System.out.println("finish them!");
 		while (!ready) {
 			for (CountThread th : pool) {
-				// System.out.println("thread");
 				synchronized (th) {
-				if (!th.isBusy()) {
-					// System.out.println("not busy");
-
-//					synchronized (th) {
-						th.notify();
-						th.join();
-					}
-					System.out.println("finished");
+					th.setTerminated(true);
+					th.notify();
+					th.join();
 				}
-				System.out.println("poolsize" + pool.size());
+				System.out.println("finished");
 			}
-			System.out.println("poolsize" + pool.size());
-			if (pool.size() == 0) {
-				ready = true;
-			}
+			ready = true;
+
 		}
 
 	}
@@ -168,11 +154,8 @@ public class CheckSumCounter {
 				e.printStackTrace();
 			}
 
-			System.out.println("cs " + checkSumSum);
+			System.out.println("finally: cs = " + checkSumSum);
 
-			// } catch (InterruptedException ex) {
-			// Logger.getLogger(CheckSumCounter.class.getName()).log(Level.SEVERE,
-			// null, ex);
 		} catch (FileNotFoundException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
