@@ -42,7 +42,9 @@ public class CheckSumCounter {
 						System.out.println("aaa ");
 						break;
 				}
-				countCs();
+				if (! terminated) {
+					countCs();
+				}
 			}
 
 			
@@ -78,6 +80,16 @@ public class CheckSumCounter {
 		public void setTerminated(boolean terminated) {
 			this.terminated = terminated;
 		}
+		
+		public void terminate(){
+			synchronized (this) {
+				terminated = true;
+//				this.notify();
+//				join();
+				}
+		System.out.println("finished");
+			
+		}
 
 		public boolean isBusy() {
 			return busy;
@@ -89,32 +101,25 @@ public class CheckSumCounter {
 	}
 
 	void schedule(byte[] part) {
-		boolean isPartPassed = false;
-		while (!isPartPassed) {
+//		boolean isPartPassed = false;
+//		while (!isPartPassed) {
+		while (true) {
 			for (CountThread th : pool) {
 				if (th.setTask(part)){
-					isPartPassed = true;
-					break;
+//					isPartPassed = true;
+//					break;
+					return;
 				}
 			}
 		}
 	}
 
-	void waitForTaskCompleting() throws InterruptedException {
-		boolean ready = false;
-		System.out.println("finish them!");
-		while (!ready) {
-			for (CountThread th : pool) {
-				synchronized (th) {
-					th.setTerminated(true);
-					th.notify();
-					th.join();
-				}
-				System.out.println("finished");
-			}
-			ready = true;
+	void waitForTaskCompleting() {
 
-		}
+		System.out.println("finish them!");
+			for (CountThread th : pool) {
+				th.terminate();
+			}
 
 	}
 
@@ -132,8 +137,6 @@ public class CheckSumCounter {
 
 			initPool();
 
-			System.out.println(pool.size());
-
 			ByteArrayInputStream data = new ByteArrayInputStream(allBytes);
 
 			// while(fi.available() >= bytesCountToRead) {
@@ -147,12 +150,13 @@ public class CheckSumCounter {
 				schedule(part);
 			}
 			System.out.println("all data passed");
-			try {
-				waitForTaskCompleting();
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+			waitForTaskCompleting();
+//			try {
+//				
+//			} catch (InterruptedException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			}
 
 			System.out.println("finally: cs = " + checkSumSum);
 
