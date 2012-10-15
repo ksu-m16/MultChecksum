@@ -81,11 +81,11 @@ public class CheckSumCounter {
 			this.terminated = terminated;
 		}
 		
-		public void terminate(){
+		public void terminate() throws InterruptedException{
 			synchronized (this) {
 				terminated = true;
-//				this.notify();
-//				join();
+				this.notify();
+				join();
 				}
 		System.out.println("finished");
 			
@@ -118,7 +118,12 @@ public class CheckSumCounter {
 
 		System.out.println("finish them!");
 			for (CountThread th : pool) {
-				th.terminate();
+				try {
+					th.terminate();
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 			}
 
 	}
